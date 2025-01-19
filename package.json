@@ -3,6 +3,7 @@
     "concurrently": "^8.2.2"
   },
   "scripts": {
+    "test": "npm run test-back && npm run test-front",
     "test-back": "cd backend && npm run test",
     "test-front": "cd frontend && npm run test",
     "start-frontend": "cd frontend && npm run dev",
