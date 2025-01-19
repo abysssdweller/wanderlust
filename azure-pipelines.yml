@@ -21,6 +21,9 @@ jobs:
   - script: |
       npm install
     displayName: 'Install Dependencies'
+  - script: |
+      npm install ts-node --save-dev
+    displayName: 'Install ts-node'
 
   - script: |
       npm run test
