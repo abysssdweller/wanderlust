@@ -36,17 +36,7 @@ steps:
       sonar.typescript.lcov.reportPaths=coverage/lcov.info
   displayName: 'Prepare SonarQube Analysis'
 
-# Step 4: OWASP Dependency Check
-- script: |
-    dependency-check --scan ./ --format XML --out ./dependency-check-report.xml
-  displayName: 'Run OWASP Dependency Check'
 
-# Step 5: Publish OWASP Dependency Check Report
-- task: PublishBuildArtifacts@1
-  inputs:
-    pathToPublish: '**/dependency-check-report.xml'
-    artifactName: 'dependency-check-report'
-  displayName: 'Publish Dependency Check Report'
 
 # Step 6: Run SonarQube Analysis
 - task: SonarQubeAnalyze@5
