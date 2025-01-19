@@ -9,8 +9,8 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install required dependencies
-RUN npm install
-RUN chown -R appuser:appgroup /app
+RUN npm install &&\
+    chown -R appuser:appgroup /app
 USER appuser
 
 # Copy the rest of the application code to the working directory
