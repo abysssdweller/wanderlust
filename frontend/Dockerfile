@@ -7,6 +7,5 @@ COPY . .
 FROM node:21-slim
 WORKDIR /app
 COPY --from=frontend-builder /app .
-COPY .env.docker .env.local
 EXPOSE 3000
 CMD ["npm","run","dev","--host"]
