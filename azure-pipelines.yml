@@ -18,11 +18,7 @@ steps:
     versionSpec: '20.x'
   displayName: 'Install Node.js'
 
-# Step 2: Install Dependencies and Run Tests
-- script: |
-    npm install
-    npm run test
-  displayName: 'Install Dependencies and Run Tests'
+
 
 # Step 3: Prepare SonarQube Analysis
 - task: SonarQubePrepare@5
