@@ -1,5 +1,6 @@
 # Base image for backend
 FROM node:21 
+RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 
 # Set the working directory inside the container
 WORKDIR /app
@@ -9,6 +10,8 @@ COPY package*.json ./
 
 # Install required dependencies
 RUN npm install
+RUN chown -R appuser:appgroup /app
+USER appuser
 
 # Copy the rest of the application code to the working directory
 COPY . .
