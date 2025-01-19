@@ -1,0 +1,69 @@
+trigger:
+- devops # Trigger pipeline when changes are pushed to the 'devops' branch
+
+pool:
+  agent: Default
+
+variables:
+  SONAR_HOME: "azuzu"
+
+stages:
+- stage: CloneCode
+  displayName: "Clone Code from GitHub"
+  jobs:
+  - job: CloneCodeJob
+    steps:
+    - checkout: self # Automatically checks out the repository specified in the pipeline
+
+- stage: SonarQubeQualityAnalysis
+  displayName: "SonarQube Quality Analysis"
+  dependsOn: CloneCode
+  jobs:
+  - job: SonarAnalysisJob
+    steps:
+    - task: SonarQubePrepare@5
+      inputs:
+        SonarQube: 'sonar' # Use the name of your SonarQube service connection in Azure DevOps
+        scannerMode: 'CLI'
+        configMode: 'manual'
+        cliProjectKey: 'wanderlust'
+        cliProjectName: 'wanderlust'
+    - script: |
+        $(SONAR_HOME)/bin/sonar-scanner
+      displayName: "Run Sonar Scanner"
+    - task: SonarQubeAnalyze@5
+
+- stage: OWASPDependencyCheck
+  displayName: "OWASP Dependency Check"
+  dependsOn: SonarQubeQualityAnalysis
+  jobs:
+  - job: OWASPDependencyCheckJob
+    steps:
+    - script: |
+        dependency-check --scan ./ --format XML --out ./dependency-check-report.xml
+      displayName: "Run OWASP Dependency Check"
+    - task: PublishBuildArtifacts@1
+      inputs:
+        pathToPublish: '**/dependency-check-report.xml'
+        artifactName: 'dependency-check-report'
+
+- stage: SonarQualityGateScan
+  displayName: "Sonar Quality Gate Scan"
+  dependsOn: OWASPDependencyCheck
+  jobs:
+  - job: QualityGateJob
+    steps:
+    - task: SonarQubeAnalyze@5
+    - task: SonarQubePublish@5
+      inputs:
+        pollingTimeoutSec: '120'
+
+- stage: DeployUsingDockerCompose
+  displayName: "Deploy using Docker Compose"
+  dependsOn: SonarQualityGateScan
+  jobs:
+  - job: DeployJob
+    steps:
+    - script: |
+        docker-compose up -d
+      displayName: "Deploy using Docker Compose"
