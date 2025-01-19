@@ -1,11 +1,10 @@
-FROM node:21 AS frontend-builder
-WORKDIR /app
-COPY package.json ./
-RUN npm install
-RUN npm run test
+FROM node:21
+WORKDIR /frontend
+COPY package*.json ./
+RUN npm i
 COPY . .
-FROM node:21-slim
-WORKDIR /app
-COPY --from=frontend-builder /app .
+COPY .env.sample .env.local
+
 EXPOSE 3000
+
 CMD ["npm","run","dev","--host"]
