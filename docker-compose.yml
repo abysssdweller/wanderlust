@@ -4,13 +4,15 @@ services:
     container_name: mongo
     image: mongo:latest
     volumes:
-      - ./backend/data:/data
+      - ./backend/data:/data/db
     ports:
       - "27018:27017"
-    
+
   backend:
     container_name: backend
-    build: ./backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile  # Explicitly mention Dockerfile if it's named Dockerfile or adjust if needed
     env_file:
       - ./backend/.env.sample
     ports:
@@ -24,7 +26,9 @@ services:
 
   frontend:
     container_name: frontend
-    build: ./frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile  # Explicitly mention Dockerfile if it's named Dockerfile or adjust if needed
     ports:
       - "5173:5173"
     volumes:
@@ -38,4 +42,3 @@ services:
 
 volumes:
   logs:
-
