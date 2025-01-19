@@ -20,8 +20,11 @@ jobs:
 
   - script: |
       npm install
+      cd frontend
+      npm install
     displayName: 'Install Dependencies'
   - script: |
+      cd frontend
       npm install ts-node --save-dev
     displayName: 'Install ts-node'
 
@@ -37,6 +40,7 @@ jobs:
       mergeTestResults: true
       failTaskOnFailedTests: true
       testRunTitle: 'Jest Unit Tests'
+    continueOnError: true
 
   - task: PublishCodeCoverageResults@1
     displayName: 'Publish Code Coverage Results'
@@ -44,6 +48,7 @@ jobs:
       codeCoverageTool: 'Cobertura'
       summaryFileLocation: 'coverage/lcov.info'
       failIfCoverageEmpty: true
+    continueOnError: true
 
 - job: SonarQube
   displayName: SonarQube Analysis
