@@ -6,7 +6,7 @@ services:
     volumes:
       - ./backend/data:/data
     ports:
-      - "27017:27017"
+      - "27018:27017"
     
   backend:
     container_name: backend
