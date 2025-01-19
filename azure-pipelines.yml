@@ -1,69 +1,99 @@
 trigger:
-- devops # Trigger pipeline when changes are pushed to the 'devops' branch
+- devops
 
 pool:
-  agent: Default
+  name: Default
 
 variables:
-  SONAR_HOME: "azuzu"
+  SONARQUBE_PROJECT_KEY: 'wanderlust_project_key'
+  SONARQUBE_SERVICE_CONNECTION: 'azuzu' # Replace with your service connection name
+  DOCKER_REGISTRY_SERVICE: 'dokuku' # Replace with your Docker registry service connection
+  NODE_ENV: 'production'
+  SONAR_HOME: '/opt/sonarqube/bin' # Adjust based on agent configuration
 
-stages:
-- stage: CloneCode
-  displayName: "Clone Code from GitHub"
-  jobs:
-  - job: CloneCodeJob
-    steps:
-    - checkout: self # Automatically checks out the repository specified in the pipeline
+steps:
+# Step 1: Install Node.js
+- task: NodeTool@0
+  inputs:
+    versionSpec: '20.x'
+  displayName: 'Install Node.js'
 
-- stage: SonarQubeQualityAnalysis
-  displayName: "SonarQube Quality Analysis"
-  dependsOn: CloneCode
-  jobs:
-  - job: SonarAnalysisJob
-    steps:
-    - task: SonarQubePrepare@5
-      inputs:
-        SonarQube: 'sonar' # Use the name of your SonarQube service connection in Azure DevOps
-        scannerMode: 'CLI'
-        configMode: 'manual'
-        cliProjectKey: 'wanderlust'
-        cliProjectName: 'wanderlust'
-    - script: |
-        $(SONAR_HOME)/bin/sonar-scanner
-      displayName: "Run Sonar Scanner"
-    - task: SonarQubeAnalyze@5
+# Step 2: Clone Code
+- script: |
+    echo "Code is automatically cloned in Azure DevOps pipelines"
+  displayName: 'Clone Code from GitHub'
 
-- stage: OWASPDependencyCheck
-  displayName: "OWASP Dependency Check"
-  dependsOn: SonarQubeQualityAnalysis
-  jobs:
-  - job: OWASPDependencyCheckJob
-    steps:
-    - script: |
-        dependency-check --scan ./ --format XML --out ./dependency-check-report.xml
-      displayName: "Run OWASP Dependency Check"
-    - task: PublishBuildArtifacts@1
-      inputs:
-        pathToPublish: '**/dependency-check-report.xml'
-        artifactName: 'dependency-check-report'
+# Step 3: Prepare SonarQube Analysis
+- task: SonarQubePrepare@5
+  inputs:
+    SonarQube: '$(SONARQUBE_SERVICE_CONNECTION)'
+    scannerMode: 'CLI'
+    configMode: 'manual'
+    cliProjectKey: '$(SONARQUBE_PROJECT_KEY)'
+    cliSources: '.'
+    extraProperties: |
+      sonar.exclusions=**/node_modules/**,**/*.spec.ts
+      sonar.typescript.lcov.reportPaths=coverage/lcov.info
+  displayName: 'Prepare SonarQube Analysis'
 
-- stage: SonarQualityGateScan
-  displayName: "Sonar Quality Gate Scan"
-  dependsOn: OWASPDependencyCheck
-  jobs:
-  - job: QualityGateJob
-    steps:
-    - task: SonarQubeAnalyze@5
-    - task: SonarQubePublish@5
-      inputs:
-        pollingTimeoutSec: '120'
+# Step 4: OWASP Dependency Check
+- script: |
+    dependency-check --scan ./ --format XML --out ./dependency-check-report.xml
+  displayName: 'Run OWASP Dependency Check'
 
-- stage: DeployUsingDockerCompose
-  displayName: "Deploy using Docker Compose"
-  dependsOn: SonarQualityGateScan
-  jobs:
-  - job: DeployJob
-    steps:
-    - script: |
-        docker-compose up -d
-      displayName: "Deploy using Docker Compose"
+# Step 5: Publish OWASP Dependency Check Report
+- task: PublishBuildArtifacts@1
+  inputs:
+    pathToPublish: '**/dependency-check-report.xml'
+    artifactName: 'dependency-check-report'
+  displayName: 'Publish Dependency Check Report'
+
+# Step 6: Run SonarQube Analysis
+- task: SonarQubeAnalyze@5
+  displayName: 'Run SonarQube Analysis'
+
+# Step 7: Publish SonarQube Quality Gate Results
+- task: SonarQubePublish@5
+  inputs:
+    pollingTimeoutSec: '300'
+  displayName: 'Publish SonarQube Quality Gate Results'
+
+# Step 8: Build and Deploy with Docker Compose
+- script: |
+    docker-compose up -d
+  displayName: 'Deploy Using Docker Compose'
+
+# Step 9: Login to Docker Registry
+- task: Docker@2
+  inputs:
+    containerRegistry: '$(DOCKER_REGISTRY_SERVICE)'
+    command: 'login'
+  displayName: 'Login to Docker Registry'
+
+# Step 10: Build and Push Docker Image
+- task: Docker@2
+  inputs:
+    containerRegistry: '$(DOCKER_REGISTRY_SERVICE)'
+    repository: 'wanderlust'
+    command: 'buildAndPush'
+    Dockerfile: '**/Dockerfile'
+  displayName: 'Build and Push Docker Image'
+
+# Step 11: Security Scan Docker Image
+- script: |
+    docker scan wanderlust:latest --file ./Dockerfile
+  displayName: 'Scan Docker Image for Vulnerabilities'
+
+# Step 12: Publish Test Results (Optional)
+- task: PublishTestResults@2
+  inputs:
+    testResultsFiles: '**/test-results/*.xml'
+    failTaskOnFailedTests: true
+  displayName: 'Publish Test Results'
+
+# Step 13: Publish Code Coverage Results (Optional)
+- task: PublishCodeCoverageResults@1
+  inputs:
+    codeCoverageTool: 'Cobertura'
+    summaryFileLocation: 'coverage/lcov.info'
+  displayName: 'Publish Code Coverage Results'
