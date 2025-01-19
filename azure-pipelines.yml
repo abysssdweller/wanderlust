@@ -5,80 +5,112 @@ pool:
   name: Default
 
 variables:
-  SONARQUBE_PROJECT_KEY: 'wanderlust_project_key'
-  SONARQUBE_SERVICE_CONNECTION: 'azuzu' # Replace with your service connection name
-  DOCKER_REGISTRY_SERVICE: 'dokuku' # Replace with your Docker registry service connection
-  NODE_ENV: 'production'
-  SONAR_HOME: '/opt/sonarqube/bin' # Adjust based on agent configuration
+  project_key: 'DEVOPS_DEVOPS_1097916f-7d2f-4efa-87d6-af47cbf141fe' # Replace with your SonarQube project key
+  sonar_service: 'azuzu' # Replace with your SonarQube service connection name
+  docker_registry_service: 'dokuku' # Replace with your Docker registry service connection
+  node_version: '20.x' # Adjust Node.js version if needed
 
-steps:
-# Step 1: Install Node.js
-- task: NodeTool@0
-  inputs:
-    versionSpec: '20.x'
-  displayName: 'Install Node.js'
+jobs:
+- job: UnitTesting
+  displayName: Unit Testing
+  steps:
+  - task: UseNode@1
+    inputs:
+      version: '$(node_version)'
 
+  - task: npmAuthenticate@0
+    inputs:
+      workingFile: .npmrc
 
+  - script: |
+      npm install
+    displayName: 'Install Dependencies'
 
-# Step 3: Prepare SonarQube Analysis
-- task: SonarQubePrepare@5
-  inputs:
-    SonarQube: '$(SONARQUBE_SERVICE_CONNECTION)'
-    scannerMode: 'CLI'
-    configMode: 'manual'
-    cliProjectKey: '$(SONARQUBE_PROJECT_KEY)'
-    cliSources: '.'
-    extraProperties: |
-      sonar.exclusions=**/node_modules/**,**/*.spec.ts
-      sonar.typescript.lcov.reportPaths=coverage/lcov.info
-  displayName: 'Prepare SonarQube Analysis'
+  - script: |
+      npm run test
+    displayName: 'Run Unit Tests'
+    continueOnError: true
 
-# Step 4: Run SonarQube Analysis
-- task: SonarQubeAnalyze@5
-  displayName: 'Run SonarQube Analysis'
+  - task: PublishTestResults@2
+    inputs:
+      testResultsFormat: 'JUnit'
+      testResultsFiles: '**/test-results/*.xml' # Adjust if your test result location differs
+      mergeTestResults: true
+      failTaskOnFailedTests: true
+      testRunTitle: 'Jest Unit Tests'
 
-# Step 5: Publish SonarQube Quality Gate Results
-- task: SonarQubePublish@5
-  inputs:
-    pollingTimeoutSec: '300'
-  displayName: 'Publish SonarQube Quality Gate Results'
+  - task: PublishCodeCoverageResults@1
+    displayName: 'Publish Code Coverage Results'
+    inputs:
+      codeCoverageTool: 'Cobertura'
+      summaryFileLocation: 'coverage/lcov.info'
+      failIfCoverageEmpty: true
 
-# Step 6: Build and Deploy with Docker Compose
-- script: |
-    docker-compose up -d
-  displayName: 'Deploy Using Docker Compose'
+- job: SonarQube
+  displayName: SonarQube Analysis
+  dependsOn: UnitTesting
+  steps:
+  - task: SonarQubePrepare@7
+    inputs:
+      SonarQube: '$(sonar_service)'
+      scannerMode: 'CLI'
+      configMode: 'manual'
+      cliProjectKey: '$(project_key)'
+      cliSources: '.'
+      extraProperties: |
+        sonar.exclusions=**/node_modules/**,**/*.spec.ts
+        sonar.typescript.lcov.reportPaths=coverage/lcov.info
 
-# Step 7: Login to Docker Registry
-- task: Docker@2
-  inputs:
-    containerRegistry: '$(DOCKER_REGISTRY_SERVICE)'
-    command: 'login'
-  displayName: 'Login to Docker Registry'
+  - task: SonarQubeAnalyze@7
+    displayName: 'Run SonarQube Analysis'
 
-# Step 8: Build and Push Docker Image
-- task: Docker@2
-  inputs:
-    containerRegistry: '$(DOCKER_REGISTRY_SERVICE)'
-    repository: 'wanderlust'
-    command: 'buildAndPush'
-    Dockerfile: '**/Dockerfile'
-  displayName: 'Build and Push Docker Image'
+  - task: SonarQubePublish@7
+    inputs:
+      pollingTimeoutSec: '300'
+    displayName: 'Publish SonarQube Quality Gate Results'
 
-# Step 9: Security Scan Docker Image
-- script: |
-    docker scan wanderlust:latest --file ./Dockerfile
-  displayName: 'Scan Docker Image for Vulnerabilities'
+- job: Packing
+  displayName: Build and Dockerize Application
+  dependsOn: UnitTesting
+  steps:
+  - task: UseNode@1
+    inputs:
+      version: '$(node_version)'
 
-# Step 10: Publish Test Results
-- task: PublishTestResults@2
-  inputs:
-    testResultsFiles: '**/test-results/*.xml'
-    failTaskOnFailedTests: true
-  displayName: 'Publish Test Results'
+  - task: npmAuthenticate@0
+    inputs:
+      workingFile: .npmrc
 
-# Step 11: Publish Code Coverage Results
-- task: PublishCodeCoverageResults@1
-  inputs:
-    codeCoverageTool: 'Cobertura'
-    summaryFileLocation: 'coverage/lcov.info'
-  displayName: 'Publish Code Coverage Results'
+  - script: |
+      npm install
+      npm run build
+    displayName: 'Build Application'
+
+  - script: |
+      npm pack
+    displayName: 'Package Application as NPM Package'
+
+  - task: DockerInstaller@0
+    inputs:
+      dockerVersion: '17.09.0-ce'
+
+  - task: Docker@2
+    inputs:
+      containerRegistry: '$(docker_registry_service)'
+      command: 'login'
+    displayName: 'Login to Docker Registry'
+
+  - task: Docker@2
+    inputs:
+      containerRegistry: '$(docker_registry_service)'
+      repository: 'wanderlust' # Replace with your Docker repository name
+      command: 'build'
+      Dockerfile: '**/Dockerfile'
+    displayName: 'Build Docker Image'
+
+  - task: Docker@2
+    inputs:
+      containerRegistry: '$(docker_registry_service)'
+      repository: 'wanderlust' # Replace with your Docker repository name
+      command: 'push'
+    displayName: 'Push Docker Image to Registry'
