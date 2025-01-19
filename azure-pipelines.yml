@@ -37,12 +37,6 @@ jobs:
       failTaskOnFailedTests: true
       testRunTitle: 'Jest Unit Tests'
 
-  - task: PublishCodeCoverageResults@1
-    displayName: 'Publish Code Coverage Results'
-    inputs:
-      codeCoverageTool: 'Cobertura'
-      summaryFileLocation: 'coverage/lcov.info'
-      failIfCoverageEmpty: true
 
 - job: SonarQube
   displayName: SonarQube Analysis
