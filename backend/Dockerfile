@@ -6,6 +6,5 @@ RUN npm run test
 FROM node:21-slim
 WORKDIR /app
 COPY --from=backend-builder /app .
-COPY .env.docker .env
 EXPOSE 5000
 CMD ["npm", "start"]
