@@ -1,6 +1,6 @@
 FROM node:21 AS backend-builder
 WORKDIR /app
-COPY ..
+COPY . .
 RUN npm i
 RUN npm run test
 FROM node:21-slim
