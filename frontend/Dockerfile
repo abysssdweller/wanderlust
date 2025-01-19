@@ -3,8 +3,8 @@ RUN groupadd -r frontendgroup && useradd -r -g frontendgroup frontenduser
 
 WORKDIR /frontend
 COPY package*.json ./
-RUN npm i
-RUN chown -R frontenduser:frontendgroup /frontend
+RUN npm i &&\
+    chown -R frontenduser:frontendgroup /frontend
 USER frontenduser
 
 COPY . .
