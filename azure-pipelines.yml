@@ -1,26 +1,134 @@
 trigger:
-- main
+- dev
 
 pool:
-  name: default
+  name: Default
 
-jobs:
-- job: Build
-  displayName: 'Build job'
-  steps:
-  - task: NodeTool@0
-    inputs:
-      versionSpec: '16.x'
-    displayName: 'Install Node.js'
+variables:
+  project_key: 'DEVOPS_DEVOPS_1097916f-7d2f-4efa-87d6-af47cbf141fe' # Replace with your SonarQube project key
+  sonar_service: 'azuzu' # Replace with your SonarQube service connection name
+  docker_registry_service: 'dokuku' # Replace with your Docker registry service connection
+  node_version: '20.x' # Adjust Node.js version if needed
+  FEED_NAME: 'wanderlust' 
+  PACKAGE_NAME: 'wanderlust'  
+  NODE_ENV: 'production'
+  PACKAGE_VERSION: '$(Build.BuildId)' 
 
-  - script: |
-      cd frontend
-      npm install
-      npm run build
-    displayName: 'Build Frontend'
 
-  - script: |
-      cd backend
-      npm install
-      npm run build
-    displayName: 'Build Backend'
+steps:
+# Step 1: install Node.js
+- task: NodeTool@0
+  inputs:
+    versionSpec: '20.x'
+  displayName: 'Install Node.js'
+
+# Step 3: install dependencies and test in react project
+- script: |
+    npm install -g @angular/cli
+    cd frontend
+    npm install
+    npm run test 
+  displayName: 'npm install and build and testing'
+
+# Step: Run Dependency Vulnerability Check with npm audit
+- script: |
+    cd frontend
+    npm install --legacy-peer-deps
+    npm audit --audit-level=high
+  displayName: 'Dependency Vulnerability Check with npm audit'
+
+
+# Step 4: publish test results
+- task: PublishTestResults@2
+  inputs:
+    testResultsFiles: './frontend/coverage/test-results/junit.xml'
+    failTaskOnFailedTests: true
+  displayName: 'Publish Test Results'
+  continueOnError: true
+
+# Step 5: publish code coverage
+- task: PublishCodeCoverageResults@1
+  inputs:
+    codeCoverageTool: 'Cobertura'
+    summaryFileLocation: './frontend/coverage/lcov.info'
+  displayName: 'Publish Code Coverage Results'
+  continueOnError: true
+
+# Step 2: prepare SonarQube analysis
+- task: SonarQubePrepare@5
+  inputs:
+    SonarQube: 'azuzu'
+    scannerMode: 'CLI'
+    configMode: 'manual'
+    cliProjectKey: 'DEVOPS_DEVOPS_1097916f-7d2f-4efa-87d6-af47cbf141fe'
+    cliSources: '.' 
+    extraProperties: |
+      sonar.exclusions=**/node_modules/**,**/*.spec.ts  # exclude some folders/files
+      sonar.typescript.lcov.reportPaths=coverage/lcov.info  
+
+  # Step 6: run SonarQube analysis
+- task: SonarQubeAnalyze@5
+  displayName: 'Run SonarQube analysis'
+
+# Step 7: publish SonarQube quality gate results
+- task: SonarQubePublish@5
+  inputs:
+    pollingTimeoutSec: '300'
+  displayName: 'Publish SonarQube quality gate results'
+
+#step 8: package project
+- script: |
+    cd frontend
+    npm version --no-git-tag-version 1.0.$(Build.BuildId)
+    npm pack
+  displayName: 'Package project'
+
+
+#step 9: login to docker hub
+- task: Docker@2
+  inputs:
+    containerRegistry: 'dokuku'
+    command: 'login'
+  displayName: 'Login to Docker Hub'
+
+# Step 10: build and push Docker image
+- task: Docker@2
+  inputs:
+    containerRegistry: 'dokuku'
+    repository: 'rayen/nodeproject'
+    command: 'buildAndPush'
+    Dockerfile: '**/Dockerfile'
+  displayName: 'Build and push Docker image'
+
+
+# Step 11: Security Scan Docker Image using Trivy
+- task: PowerShell@2
+  displayName: 'Scan Docker Image for Vulnerabilities with Trivy'
+  inputs:
+    targetType: 'inline'
+    script: |
+      docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image ibtihel2001/nodeproject:$(Build.BuildId) --scanners vuln --severity HIGH,CRITICAL
+
+# Step 14: Deploy Docker Container
+- task: PowerShell@2
+  displayName: 'Deploy Docker Container'
+  inputs:
+    targetType: 'inline'
+    script: |
+      docker run -d --name art-market-container -p 8085:80 ibtihel2001/nodeproject:$(Build.BuildId)
+
+
+# Step 12: Push package to Azure Artifacts
+- task: npmAuthenticate@0
+  inputs:
+    workingFile: ./frontend/.npmrc
+  displayName: 'Authenticate to Azure Artifacts'
+
+#step 13: Push package to Azure Artifacts
+- task: Npm@1
+  inputs:
+    workingDir: './frontend'
+    command: 'publish'
+    publishRegistry: 'useFeed'
+    publishFeed: '22abed3e-a7dd-43a5-9b98-52ef5521bbcb/3d91f424-c466-461c-80b0-9a360d82c0cf'
+  displayName: 'Push package to Azure Artifacts'
