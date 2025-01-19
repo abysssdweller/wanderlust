@@ -22,18 +22,17 @@ steps:
     versionSpec: '20.x'
   displayName: 'Install Node.js'
 
-# Step 3: install dependencies and build nd test in angular project
+# Step 3: install dependencies and test in react project
 - script: |
     npm install -g @angular/cli
-    cd ArtMarket
+    cd frontend
     npm install
-    ng build --prod
     npm run test 
   displayName: 'npm install and build and testing'
 
 # Step: Run Dependency Vulnerability Check with npm audit
 - script: |
-    cd ArtMarket
+    cd frontend
     npm install --legacy-peer-deps
     npm audit --audit-level=high
   displayName: 'Dependency Vulnerability Check with npm audit'
@@ -42,24 +41,26 @@ steps:
 # Step 4: publish test results
 - task: PublishTestResults@2
   inputs:
-    testResultsFiles: './ArtMarket/coverage/test-results/junit.xml'
+    testResultsFiles: './frontend/coverage/test-results/junit.xml'
     failTaskOnFailedTests: true
   displayName: 'Publish Test Results'
+  continueOnError: true
 
 # Step 5: publish code coverage
 - task: PublishCodeCoverageResults@1
   inputs:
     codeCoverageTool: 'Cobertura'
-    summaryFileLocation: './ArtMarket/coverage/lcov.info'
+    summaryFileLocation: './frontend/coverage/lcov.info'
   displayName: 'Publish Code Coverage Results'
+  continueOnError: true
 
 # Step 2: prepare SonarQube analysis
 - task: SonarQubePrepare@5
   inputs:
-    SonarQube: '$(SONARQUBE_SERVICE_CONNECTION)'
+    SonarQube: 'azuzu'
     scannerMode: 'CLI'
     configMode: 'manual'
-    cliProjectKey: '$(SONARQUBE_PROJECT_KEY)'
+    cliProjectKey: 'DEVOPS_DEVOPS_1097916f-7d2f-4efa-87d6-af47cbf141fe'
     cliSources: '.' 
     extraProperties: |
       sonar.exclusions=**/node_modules/**,**/*.spec.ts  # exclude some folders/files
@@ -77,7 +78,7 @@ steps:
 
 #step 8: package project
 - script: |
-    cd ArtMarket
+    cd frontend
     npm version --no-git-tag-version 1.0.$(Build.BuildId)
     npm pack
   displayName: 'Package project'
@@ -86,15 +87,15 @@ steps:
 #step 9: login to docker hub
 - task: Docker@2
   inputs:
-    containerRegistry: 'docker.io'
+    containerRegistry: 'dokuku'
     command: 'login'
   displayName: 'Login to Docker Hub'
 
 # Step 10: build and push Docker image
 - task: Docker@2
   inputs:
-    containerRegistry: 'docker.io'
-    repository: 'ibtihel2001/nodeproject'
+    containerRegistry: 'dokuku'
+    repository: 'rayen/nodeproject'
     command: 'buildAndPush'
     Dockerfile: '**/Dockerfile'
   displayName: 'Build and push Docker image'
@@ -120,13 +121,13 @@ steps:
 # Step 12: Push package to Azure Artifacts
 - task: npmAuthenticate@0
   inputs:
-    workingFile: ./ArtMarket/.npmrc
+    workingFile: ./frontend/.npmrc
   displayName: 'Authenticate to Azure Artifacts'
 
 #step 13: Push package to Azure Artifacts
 - task: Npm@1
   inputs:
-    workingDir: './ArtMarket'
+    workingDir: './frontend'
     command: 'publish'
     publishRegistry: 'useFeed'
     publishFeed: '22abed3e-a7dd-43a5-9b98-52ef5521bbcb/3d91f424-c466-461c-80b0-9a360d82c0cf'
