@@ -18,10 +18,11 @@ steps:
     versionSpec: '20.x'
   displayName: 'Install Node.js'
 
-# Step 2: Clone Code
+# Step 2: Install Dependencies and Run Tests
 - script: |
-    echo "Code is automatically cloned in Azure DevOps pipelines"
-  displayName: 'Clone Code from GitHub'
+    npm install
+    npm run test
+  displayName: 'Install Dependencies and Run Tests'
 
 # Step 3: Prepare SonarQube Analysis
 - task: SonarQubePrepare@5
@@ -36,31 +37,29 @@ steps:
       sonar.typescript.lcov.reportPaths=coverage/lcov.info
   displayName: 'Prepare SonarQube Analysis'
 
-
-
-# Step 6: Run SonarQube Analysis
+# Step 4: Run SonarQube Analysis
 - task: SonarQubeAnalyze@5
   displayName: 'Run SonarQube Analysis'
 
-# Step 7: Publish SonarQube Quality Gate Results
+# Step 5: Publish SonarQube Quality Gate Results
 - task: SonarQubePublish@5
   inputs:
     pollingTimeoutSec: '300'
   displayName: 'Publish SonarQube Quality Gate Results'
 
-# Step 8: Build and Deploy with Docker Compose
+# Step 6: Build and Deploy with Docker Compose
 - script: |
     docker-compose up -d
   displayName: 'Deploy Using Docker Compose'
 
-# Step 9: Login to Docker Registry
+# Step 7: Login to Docker Registry
 - task: Docker@2
   inputs:
     containerRegistry: '$(DOCKER_REGISTRY_SERVICE)'
     command: 'login'
   displayName: 'Login to Docker Registry'
 
-# Step 10: Build and Push Docker Image
+# Step 8: Build and Push Docker Image
 - task: Docker@2
   inputs:
     containerRegistry: '$(DOCKER_REGISTRY_SERVICE)'
@@ -69,19 +68,19 @@ steps:
     Dockerfile: '**/Dockerfile'
   displayName: 'Build and Push Docker Image'
 
-# Step 11: Security Scan Docker Image
+# Step 9: Security Scan Docker Image
 - script: |
     docker scan wanderlust:latest --file ./Dockerfile
   displayName: 'Scan Docker Image for Vulnerabilities'
 
-# Step 12: Publish Test Results (Optional)
+# Step 10: Publish Test Results
 - task: PublishTestResults@2
   inputs:
     testResultsFiles: '**/test-results/*.xml'
     failTaskOnFailedTests: true
   displayName: 'Publish Test Results'
 
-# Step 13: Publish Code Coverage Results (Optional)
+# Step 11: Publish Code Coverage Results
 - task: PublishCodeCoverageResults@1
   inputs:
     codeCoverageTool: 'Cobertura'
