@@ -1,0 +1,111 @@
+trigger:
+- devops
+
+pool:
+  name: Default
+
+variables:
+  project_key: 'DEVOPS_DEVOPS_1097916f-7d2f-4efa-87d6-af47cbf141fe' # Replace with your SonarQube project key
+  sonar_service: 'azuzu' # Replace with your SonarQube service connection name
+  docker_registry_service: 'dokuku' # Replace with your Docker registry service connection
+  node_version: '21.x' # Adjust Node.js version if needed
+
+jobs:
+- job: UnitTesting
+  displayName: Unit Testing
+  steps:
+  - task: UseNode@1
+    inputs:
+      version: '$(node_version)'
+
+  - script: |
+      npm install
+    displayName: 'Install Dependencies'
+
+  - script: |
+      npm run test
+    displayName: 'Run Unit Tests'
+    continueOnError: true
+
+  - task: PublishTestResults@2
+    inputs:
+      testResultsFormat: 'JUnit'
+      testResultsFiles: '**/test-results/*.xml' # Adjust if your test result location differs
+      mergeTestResults: true
+      failTaskOnFailedTests: true
+      testRunTitle: 'Jest Unit Tests'
+
+  - task: PublishCodeCoverageResults@1
+    displayName: 'Publish Code Coverage Results'
+    inputs:
+      codeCoverageTool: 'Cobertura'
+      summaryFileLocation: 'coverage/lcov.info'
+      failIfCoverageEmpty: true
+
+- job: SonarQube
+  displayName: SonarQube Analysis
+  dependsOn: UnitTesting
+  steps:
+  - task: SonarQubePrepare@7
+    inputs:
+      SonarQube: '$(sonar_service)'
+      scannerMode: 'CLI'
+      configMode: 'manual'
+      cliProjectKey: '$(project_key)'
+      cliSources: '.'
+      extraProperties: |
+        sonar.exclusions=**/node_modules/**,**/*.spec.ts
+        sonar.typescript.lcov.reportPaths=coverage/lcov.info
+
+  - task: SonarQubeAnalyze@7
+    displayName: 'Run SonarQube Analysis'
+
+  - task: SonarQubePublish@7
+    inputs:
+      pollingTimeoutSec: '300'
+    displayName: 'Publish SonarQube Quality Gate Results'
+
+- job: Packing
+  displayName: Build and Dockerize Application
+  dependsOn: UnitTesting
+  steps:
+  - task: UseNode@1
+    inputs:
+      version: '$(node_version)'
+
+  - script: |
+      npm run installer
+    displayName: 'Install and Setup Application'
+
+  - script: |
+      npm run build
+    displayName: 'Build Application'
+
+  - script: |
+      npm pack
+    displayName: 'Package Application as NPM Package'
+
+  - task: DockerInstaller@0
+    inputs:
+      dockerVersion: '17.09.0-ce'
+
+  - task: Docker@2
+    inputs:
+      containerRegistry: '$(docker_registry_service)'
+      command: 'login'
+    displayName: 'Login to Docker Registry'
+
+  - task: Docker@2
+    inputs:
+      containerRegistry: '$(docker_registry_service)'
+      repository: 'wanderlust' # Replace with your Docker repository name
+      command: 'build'
+      Dockerfile: '**/Dockerfile'
+    displayName: 'Build Docker Image'
+
+  - task: Docker@2
+    inputs:
+      containerRegistry: '$(docker_registry_service)'
+      repository: 'wanderlust' # Replace with your Docker repository name
+      command: 'push'
+    displayName: 'Push Docker Image to Registry'
